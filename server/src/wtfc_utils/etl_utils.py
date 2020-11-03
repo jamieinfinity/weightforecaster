@@ -7,7 +7,7 @@ import fitbit
 import myfitnesspal
 from nokia import NokiaApi, NokiaCredentials  # Withings
 
-REFRESH_FIRST_DATE_LOOKBACK_DAYS = 14
+REFRESH_FIRST_DATE_LOOKBACK_DAYS = 7
 
 
 def copy_file(src, dest):
@@ -145,6 +145,7 @@ def refresh_calories(engine, db_df):
 
 
 def refresh_weight(cfg_file, engine, db_df):
+    print("REFRESHING WEIGHT...")
     parser = configparser.ConfigParser()
     parser.read(cfg_file)
     client_id = parser.get('nokia', 'client_id')
@@ -214,7 +215,7 @@ def add_roll_avg_columns(engine, db_df):
     data_df['s_7day_avg_last_week'] = data_df.s_7day_avg.shift(period_days)
     data_df.dropna(inplace=True)
     data_df['w_7day_avg_weekly_diff'] = data_df['w_7day_avg'] - data_df['w_7day_avg_last_week']
-    data_df = pd.merge(db_df.copy(), data_df, how='left', left_index=True, right_index=True)
+    data_df = pd.merge(db_df[['weight', 'calories', 'steps', 'weight_imputed']].copy(), data_df, how='left', left_index=True, right_index=True)
 
     with engine.connect() as conn, conn.begin():
         data_df.to_sql('fitness', conn, if_exists='replace')

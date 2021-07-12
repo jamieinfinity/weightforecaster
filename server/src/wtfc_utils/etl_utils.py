@@ -138,6 +138,11 @@ def refresh_calories(engine, db_df):
 
     updated_df = insert_values(date_values, 'calories', db_df)
 
+    # these values are missing or corrupted on the web site / service
+    updated_df.loc[updated_df.index=='2018-09-29', 'calories'] = 2668
+    updated_df.loc[updated_df.index=='2019-10-30', 'calories'] = 2220
+    updated_df.loc[updated_df.index=='2019-10-31', 'calories'] = 2008
+
     with engine.connect() as conn, conn.begin():
         updated_df.to_sql('fitness', conn, if_exists='replace')
 
@@ -191,7 +196,10 @@ def impute_missing_weights(engine, db_df):
     db_df_copy.loc[db_df_copy.weight.isna() & db_df_copy.weight_imputed.isna(), 'weight_imputed'] = 1.0
     db_df_copy.loc[~db_df_copy.weight.isna() & db_df_copy.weight_imputed.isna(), 'weight_imputed'] = 0.0
     db_df_copy.loc[db_df_copy.weight_imputed == 1.0, 'weight'] = np.nan
-    db_df_copy.weight.interpolate(limit=7, method='spline', order=5, inplace=True)
+    db_df_copy.weight.interpolate(limit=2, method='spline', order=2, inplace=True, limit_direction='both')
+
+    db_df_copy['weight_measured'] = db_df_copy.weight
+    db_df_copy.loc[db_df_copy.weight_imputed==1, 'weight_measured'] = np.nan
 
     with engine.connect() as conn, conn.begin():
         db_df_copy.to_sql('fitness', conn, if_exists='replace')
@@ -210,12 +218,13 @@ def add_roll_avg_columns(engine, db_df):
     data_df = data_df.rolling(period, min_periods=min_periods).mean()
     temp_df = pd.DataFrame(index=pd.date_range(start="2015-09-16", end=datetime.date.today()))
     data_df = pd.merge(temp_df, data_df, how='left', left_index=True, right_index=True)
+    data_df.w_7day_avg.interpolate(limit=2, method='linear', inplace=True, limit_direction='both')
     data_df['w_7day_avg_last_week'] = data_df.w_7day_avg.shift(period_days)
     data_df['c_7day_avg_last_week'] = data_df.c_7day_avg.shift(period_days)
     data_df['s_7day_avg_last_week'] = data_df.s_7day_avg.shift(period_days)
-    data_df.dropna(inplace=True)
+    # data_df.dropna(inplace=True)
     data_df['w_7day_avg_weekly_diff'] = data_df['w_7day_avg'] - data_df['w_7day_avg_last_week']
-    data_df = pd.merge(db_df[['weight', 'calories', 'steps', 'weight_imputed']].copy(), data_df, how='left', left_index=True, right_index=True)
+    data_df = pd.merge(db_df[['weight', 'calories', 'steps', 'weight_imputed', 'weight_measured']].copy(), data_df, how='left', left_index=True, right_index=True)
 
     with engine.connect() as conn, conn.begin():
         data_df.to_sql('fitness', conn, if_exists='replace')

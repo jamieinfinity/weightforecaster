@@ -286,6 +286,8 @@ def add_weight_forecast_columns(engine, db_df):
     updated_df['Mv1_0_proj_weight_2mo'] = updated_df.apply(lambda row: w_forecast(8.6, row.w_7day_avg, row.c_7day_avg, row.s_7day_avg), axis=1)
     updated_df['Mv1_0_target_steps'] = updated_df.apply(lambda row: steps_target(steps_goal, row.s_7day_avg), axis=1)
     updated_df['Mv1_0_target_cals'] = updated_df.apply(lambda row: cals_target(weight_velocity_goal, row.w_7day_avg, row.Mv1_0_target_steps), axis=1)
+    updated_df['Mv1_0_targ_weight_1mo'] = updated_df.apply(lambda row: w_forecast(4.3, row.w_7day_avg, row.Mv1_0_target_cals, row.Mv1_0_target_steps), axis=1)
+    updated_df['Mv1_0_targ_weight_2mo'] = updated_df.apply(lambda row: w_forecast(8.6, row.w_7day_avg, row.Mv1_0_target_cals, row.Mv1_0_target_steps), axis=1)
 
     with engine.connect() as conn, conn.begin():
         updated_df.to_sql('fitness', conn, if_exists='replace')

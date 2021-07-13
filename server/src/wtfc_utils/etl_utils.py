@@ -229,3 +229,76 @@ def add_roll_avg_columns(engine, db_df):
     with engine.connect() as conn, conn.begin():
         data_df.to_sql('fitness', conn, if_exists='replace')
     return data_df
+
+#########################################
+##### WEIGHT FORECAST MODEL COLUMNS #####
+#########################################
+
+# Model v0.1
+c_w = 0.9842664081035283
+c_c = 0.001965638199353011
+c_s = -4.621900527451458e-05
+c_0 = -1.2110620297640367
+alpha_s = -c_s/c_c
+alpha_0 = -c_0/c_c
+alpha_w = (1-c_w)/c_c
+gamma = -np.log(c_w)
+
+
+def w_next_week(w_curr_week, c_next_week, s_next_week):
+    return c_0 + c_w*w_curr_week + c_c*c_next_week + c_s*s_next_week
+
+
+def w_steady_state(c, s):
+    return (c - alpha_s*s - alpha_0)/alpha_w
+
+
+def c_steady_state(w, s):
+    return alpha_s*s + alpha_0 + alpha_w*w
+
+
+def w_forecast(t_weeks, w_curr_week, c, s):
+    wss = w_steady_state(c, s)
+    return (w_curr_week - wss)*np.exp(-gamma*t_weeks) + wss
+
+
+def w_velocity(w_curr_week, c, s):
+    wss = w_steady_state(c, s)
+    return gamma*(wss - w_curr_week)
+
+
+def add_weight_forecast_columns(engine, db_df):
+    print("ADDING WEIGHT FORECAST COLUMNS...")
+
+    updated_df = db_df.copy()
+    updated_df['Mv1_0_weight_velocity'] = updated_df.apply(lambda row: w_velocity(row.w_7day_avg, row.c_7day_avg, row.s_7day_avg), axis=1)
+
+    with engine.connect() as conn, conn.begin():
+        updated_df.to_sql('fitness', conn, if_exists='replace')
+
+    return updated_df
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

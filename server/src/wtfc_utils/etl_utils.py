@@ -243,6 +243,8 @@ alpha_s = -c_s/c_c
 alpha_0 = -c_0/c_c
 alpha_w = (1-c_w)/c_c
 gamma = -np.log(c_w)
+weight_goal = 155
+weight_goal_tol = 1
 steps_goal = 10000
 weight_velocity_goal = -0.5
 
@@ -269,12 +271,22 @@ def w_velocity(w_curr_week, c, s):
     return gamma*(wss - w_curr_week)
 
 
-def steps_target(s_goal, s_avg):
-    return max(s_goal, s_avg)
+def velocity_target(w_curr_week):
+    if w_curr_week <= weight_goal + weight_goal_tol:
+        return 0.0
+    else:
+        return weight_velocity_goal
+
+
+def steps_target(s_goal):
+    return s_goal
 
 
 def cals_target(w_vel, w_curr_week, s):
-    return alpha_w*(w_vel/gamma + w_curr_week) + alpha_s*s + alpha_0
+    res = alpha_w*(w_vel/gamma + w_curr_week) + alpha_s*s + alpha_0
+    if np.isnan(res):
+        return res
+    return int(round(res))
 
 
 def add_weight_forecast_columns(engine, db_df):
@@ -284,10 +296,13 @@ def add_weight_forecast_columns(engine, db_df):
     updated_df['Mv1_0_weight_velocity'] = updated_df.apply(lambda row: w_velocity(row.w_7day_avg, row.c_7day_avg, row.s_7day_avg), axis=1)
     updated_df['Mv1_0_proj_weight_1mo'] = updated_df.apply(lambda row: w_forecast(4.3, row.w_7day_avg, row.c_7day_avg, row.s_7day_avg), axis=1)
     updated_df['Mv1_0_proj_weight_2mo'] = updated_df.apply(lambda row: w_forecast(8.6, row.w_7day_avg, row.c_7day_avg, row.s_7day_avg), axis=1)
-    updated_df['Mv1_0_target_steps'] = updated_df.apply(lambda row: steps_target(steps_goal, row.s_7day_avg), axis=1)
-    updated_df['Mv1_0_target_cals'] = updated_df.apply(lambda row: cals_target(weight_velocity_goal, row.w_7day_avg, row.Mv1_0_target_steps), axis=1)
-    updated_df['Mv1_0_targ_weight_1mo'] = updated_df.apply(lambda row: w_forecast(4.3, row.w_7day_avg, row.Mv1_0_target_cals, row.Mv1_0_target_steps), axis=1)
-    updated_df['Mv1_0_targ_weight_2mo'] = updated_df.apply(lambda row: w_forecast(8.6, row.w_7day_avg, row.Mv1_0_target_cals, row.Mv1_0_target_steps), axis=1)
+    updated_df['Mv1_0_velocity_target'] = updated_df.apply(lambda row: velocity_target(row.w_7day_avg), axis=1)
+    updated_df['Mv1_0_target_steps'] = updated_df.apply(lambda row: steps_target(steps_goal), axis=1)
+    updated_df['Mv1_0_target_cals'] = updated_df.apply(lambda row: cals_target(row.Mv1_0_velocity_target, row.w_7day_avg, row.s_7day_avg), axis=1)
+    updated_df['Mv1_0_target_steps_day'] = updated_df.apply(lambda row: steps_target(steps_goal), axis=1)
+    updated_df['Mv1_0_target_cals_day'] = updated_df.apply(lambda row: cals_target(row.Mv1_0_velocity_target, row.w_7day_avg, row.steps), axis=1)
+    updated_df['Mv1_0_target_weight_1mo'] = updated_df.apply(lambda row: w_forecast(4.3, row.w_7day_avg, row.Mv1_0_target_cals, row.s_7day_avg), axis=1)
+    updated_df['Mv1_0_target_weight_2mo'] = updated_df.apply(lambda row: w_forecast(8.6, row.w_7day_avg, row.Mv1_0_target_cals, row.s_7day_avg), axis=1)
 
     with engine.connect() as conn, conn.begin():
         updated_df.to_sql('fitness', conn, if_exists='replace')

@@ -244,7 +244,7 @@ alpha_0 = -c_0/c_c
 alpha_w = (1-c_w)/c_c
 gamma = -np.log(c_w)
 weight_goal = 155
-weight_goal_tol = 1
+weight_goal_tol = 0.75
 steps_goal = 10000
 weight_velocity_goal = -0.5
 
